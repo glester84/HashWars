@@ -63,7 +63,7 @@ def game_is_over():
     if tie:
         return (True, 0, 'tie')
 
-    return (False, 0, '(?)')
+    return (False, grid[0], '(?)')
 
 def str_grid():
     str = ' {} | {} | {} \n'.format(
@@ -93,7 +93,7 @@ with open('game.log', 'a') as logfile:
         player_name(1), player_name(2), datetime.now()))
     allmoves = []
     while True:
-        choice = player1.play(grid, 1)
+        choice = player1.play(list(grid), 1)
         allmoves.append(choice)
         if choice > 0 and choice < 10 and grid[choice] == 0:
             grid[choice] = 1
@@ -107,7 +107,7 @@ with open('game.log', 'a') as logfile:
         if over:
             break
 
-        choice = player2.play(grid, 2)
+        choice = player2.play(list(grid), 2)
         allmoves.append(choice)
         if choice > 0 and choice < 10 and grid[choice] == 0:
             grid[choice] = 2
