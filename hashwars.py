@@ -3,23 +3,16 @@
 import sys
 import importlib
 from datetime import datetime
+from itertools import cycle
 
 if __file__ in sys.argv[0]:
     sys.argv = sys.argv[1:]
 
-grid = [0] * 10
-
-args = {
+argv = {
     'p1': 'human',
     'p2': 'human',
+    'v': False,
     'rounds': 1,
-    'unrated': False,
-}
-
-printable = {
-    0: ' ',
-    1: 'x',
-    2: 'o',
 }
 
 lines = {
@@ -37,13 +30,14 @@ for arg in sys.argv:
     if '=' in arg:
         var, val = arg.split('=')
         var = var.replace('-', '')
-        args[var] = val
+        argv[var] = val
 
+argv['rounds'] = int(argv['rounds'])
 
-player1 = importlib.import_module(args['p1'])
-player2 = importlib.import_module(args['p2'])
+player1 = importlib.import_module(argv['p1'])
+player2 = importlib.import_module(argv['p2'])
 
-def game_is_over():
+def check_game_over(grid):
     for line_name, boxes in lines.items():
         val = grid[boxes[0]]
         if val != 0:
@@ -53,7 +47,7 @@ def game_is_over():
                     hit = False
                     break
             if hit:
-                return (True, val, line_name)
+                grid[0] = val
 
     tie = True
     for i in range(1, 10):
@@ -61,68 +55,64 @@ def game_is_over():
             tie = False
             break
     if tie:
-        return (True, 0, 'tie')
+        grid[0] = 3
 
-    return (False, grid[0], '(?)')
-
-def str_grid():
-    str = ' {} | {} | {} \n'.format(
-        printable.get(grid[1], ' '),
-        printable.get(grid[2], ' '),
-        printable.get(grid[3], ' '))
-    str = str + '---+---+---\n'
-    str = str + ' {} | {} | {} \n'.format(
-        printable.get(grid[4], ' '),
-        printable.get(grid[5], ' '),
-        printable.get(grid[6], ' '))
-    str = str + '---+---+---\n'
-    str = str + ' {} | {} | {} \n'.format(
-        printable.get(grid[7], ' '),
-        printable.get(grid[8], ' '),
-        printable.get(grid[9], ' '))
-    return str
+def is_game_over(grid):
+    return grid[0] != 0
 
 def player_name(id):
     key = 'p{}'.format(id)
-    return '{} {}'.format(id, args.get(key, id))
+    return '{} {}'.format(id, argv.get(key, id))
 
-winner = 0
-line = '(?)'
+def play_1_turn(grid, player, player_id):
+    choice = player.play(list(grid), player_id)
+    if choice > 0 and choice < 10 and grid[choice] == 0:
+        grid[choice] = player_id
+    else:
+        choice = None
+        grid[0] = 3 - player_id
+
+    check_game_over(grid)
+    return choice
+
+def play_1_game(player1, player2):
+    allmoves = []
+    grid = [0] * 10
+    players = {
+        1: player1,
+        2: player2,
+    }
+    iter = cycle(players.iteritems())
+    while not is_game_over(grid):
+        player_id, player = iter.next()
+        choice = play_1_turn(grid, player, player_id)
+        allmoves.append(choice)
+
+    logfile.write(str(allmoves) + '\n')
+    return players.get(grid[0], None)
+
+
 with open('game.log', 'a') as logfile:
     logfile.write('\n{} vs {} @ {}\n'.format(
         player_name(1), player_name(2), datetime.now()))
-    allmoves = []
-    while True:
-        choice = player1.play(list(grid), 1)
-        allmoves.append(choice)
-        if choice > 0 and choice < 10 and grid[choice] == 0:
-            grid[choice] = 1
-        else:
-            grid[0] = 2
-            break
 
-        print str_grid()
+    current_game = 1
+    turn_order = [
+        [player1, player2],
+        [player2, player1],
+    ]
+    player_order = cycle(turn_order)
+    results = {
+        player1: 0,
+        player2: 0,
+        None: 0,
+    }
+    while current_game <= argv['rounds']:
+        temp_p1, temp_p2 = player_order.next()
+        winner = play_1_game(temp_p1, temp_p2)
+        results[winner] += 1
+        current_game += 1
 
-        over, winner, line = game_is_over()
-        if over:
-            break
-
-        choice = player2.play(list(grid), 2)
-        allmoves.append(choice)
-        if choice > 0 and choice < 10 and grid[choice] == 0:
-            grid[choice] = 2
-        else:
-            grid[0] = 1
-            break
-
-        print str_grid()
-
-        over, winner, line = game_is_over()
-        if over:
-            break
-
-    outcome = 'Player {} wins by {}\n'.format(player_name(winner), line)
-    print outcome
-    logfile.write(str(allmoves) + '\n')
-    logfile.write(outcome)
-    logfile.write(str_grid())
+    print player1.__name__, results.get(player1, 0)
+    print player2.__name__, results.get(player2, 0)
+    print 'tie', results.get(None, 0)
